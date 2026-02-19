@@ -19,9 +19,13 @@ type Service struct {
 }
 
 type Rules struct {
-	ActivityMinPercent         int `yaml:"activity_min_percent"`
-	InactivityDaysAfterWatch   int `yaml:"inactivity_days_after_watch"`
-	NeverWatchedDaysSinceAdded int `yaml:"never_watched_days_since_added"`
+	ActivityMinPercent         int     `yaml:"activity_min_percent"`
+	InactivityDaysAfterWatch   int     `yaml:"inactivity_days_after_watch"`
+	NeverWatchedDaysSinceAdded int     `yaml:"never_watched_days_since_added"`
+	LowWatchMinAddedDays       int     `yaml:"low_watch_min_added_days"`
+	LowWatchMaxHours           float64 `yaml:"low_watch_max_hours"`
+	LowWatchRequire            bool    `yaml:"low_watch_require"`
+	SeriesEndedOnly            bool    `yaml:"series_ended_only"`
 }
 
 type Exceptions struct {
@@ -75,6 +79,13 @@ func (c Config) Validate() error {
 	}
 	if c.Rules.NeverWatchedDaysSinceAdded <= 0 {
 		return fmt.Errorf("rules: never-watched days must be positive")
+	}
+	if c.Rules.LowWatchMinAddedDays < 0 || c.Rules.LowWatchMaxHours < 0 {
+		return fmt.Errorf("rules: low watch thresholds must be non-negative")
+	}
+	if (c.Rules.LowWatchMinAddedDays > 0 && c.Rules.LowWatchMaxHours <= 0) ||
+		(c.Rules.LowWatchMaxHours > 0 && c.Rules.LowWatchMinAddedDays <= 0) {
+		return fmt.Errorf("rules: low_watch_min_added_days and low_watch_max_hours must both be set to enable")
 	}
 	return nil
 }

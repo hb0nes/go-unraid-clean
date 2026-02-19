@@ -89,6 +89,44 @@ func (w *watchIndex) seriesTopUsers(tvdbID int, imdbID string, titleKey string, 
 	return nil
 }
 
+func (w *watchIndex) movieTotalSeconds(tmdbID int, imdbID string, titleKey string) int64 {
+	if tmdbID > 0 {
+		if totals, ok := w.moviesByTMDB[tmdbID]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	if imdbID != "" {
+		if totals, ok := w.moviesByIMDB[imdbID]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	if titleKey != "" {
+		if totals, ok := w.moviesByTitleKey[titleKey]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	return 0
+}
+
+func (w *watchIndex) seriesTotalSeconds(tvdbID int, imdbID string, titleKey string) int64 {
+	if tvdbID > 0 {
+		if totals, ok := w.seriesByTVDB[tvdbID]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	if imdbID != "" {
+		if totals, ok := w.seriesByIMDB[imdbID]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	if titleKey != "" {
+		if totals, ok := w.seriesByTitleKey[titleKey]; ok {
+			return sumUserTotals(totals)
+		}
+	}
+	return 0
+}
+
 func recordUserTotals[K comparable](m map[K]map[string]int64, key K, user string, seconds int64) {
 	if user == "" || seconds <= 0 {
 		return
@@ -119,4 +157,12 @@ func topUsers(totals map[string]int64, limit int) []userWatch {
 		return users
 	}
 	return users[:limit]
+}
+
+func sumUserTotals(totals map[string]int64) int64 {
+	var sum int64
+	for _, seconds := range totals {
+		sum += seconds
+	}
+	return sum
 }

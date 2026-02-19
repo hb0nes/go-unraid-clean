@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"go-unraid-clean/internal/clients"
@@ -15,6 +16,7 @@ import (
 const (
 	reasonWatchInactive = "watch_inactive"
 	reasonNeverWatched  = "never_watched"
+	reasonLowWatch      = "low_watch"
 )
 
 type Options struct {
@@ -82,9 +84,10 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 		lastActivity := activity.movieLastActivity(movie.TMDBID, movie.IMDBID, titleKey)
 		topUsers := watch.movieTopUsers(movie.TMDBID, movie.IMDBID, titleKey, 2)
 		topUsersOut, topTotal := toReportUsers(topUsers)
+		totalWatchHours := float64(watch.movieTotalSeconds(movie.TMDBID, movie.IMDBID, titleKey)) / 3600
 		addedAt := parseTime(movie.Added)
 
-		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
+		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever, totalWatchHours, cfg.Rules)
 		if reason == "" {
 			continue
 		}
@@ -108,6 +111,7 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 			LastActivityAt:     lastActivity,
 			TopUsers:           topUsersOut,
 			TopUsersTotalHours: topTotal,
+			TotalWatchHours:    totalWatchHours,
 			Reason:             reason,
 		})
 	}
@@ -121,14 +125,19 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 			log.Debug().Str("title", show.Title).Msg("Skipping series due to exception")
 			continue
 		}
+		if cfg.Rules.SeriesEndedOnly && !isEndedStatus(show.Status) {
+			log.Debug().Str("title", show.Title).Str("status", show.Status).Msg("Skipping series because status is not ended")
+			continue
+		}
 
 		titleKey := normalizeTitle(show.Title)
 		firstActivity := activity.seriesFirstActivity(show.TVDBID, show.IMDBID, titleKey)
 		lastActivity := activity.seriesLastActivity(show.TVDBID, show.IMDBID, titleKey)
 		topUsers := watch.seriesTopUsers(show.TVDBID, show.IMDBID, titleKey, 2)
 		topUsersOut, topTotal := toReportUsers(topUsers)
+		totalWatchHours := float64(watch.seriesTotalSeconds(show.TVDBID, show.IMDBID, titleKey)) / 3600
 		addedAt := parseTime(show.Added)
-		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
+		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever, totalWatchHours, cfg.Rules)
 		if reason == "" {
 			continue
 		}
@@ -152,6 +161,8 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 			LastActivityAt:     lastActivity,
 			TopUsers:           topUsersOut,
 			TopUsersTotalHours: topTotal,
+			TotalWatchHours:    totalWatchHours,
+			SeriesStatus:       show.Status,
 			Reason:             reason,
 		})
 	}
@@ -162,6 +173,15 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 	}
 
 	return rep, nil
+}
+
+func isEndedStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "ended":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildIndexes(entries []map[string]any, minPercent int) (*activityIndex, *watchIndex) {
@@ -206,15 +226,39 @@ func buildIndexes(entries []map[string]any, minPercent int) (*activityIndex, *wa
 	return activity, watch
 }
 
-func evaluate(now time.Time, lastActivity *time.Time, addedAt *time.Time, cutoffWatch time.Duration, cutoffNever time.Duration) string {
+func evaluate(now time.Time, lastActivity *time.Time, addedAt *time.Time, cutoffWatch time.Duration, cutoffNever time.Duration, totalWatchHours float64, rules config.Rules) string {
+	baseReason := ""
 	if lastActivity != nil {
 		if now.Sub(*lastActivity) >= cutoffWatch {
-			return reasonWatchInactive
+			baseReason = reasonWatchInactive
 		}
-		return ""
+	} else if addedAt != nil && now.Sub(*addedAt) >= cutoffNever {
+		baseReason = reasonNeverWatched
 	}
-	if addedAt != nil && now.Sub(*addedAt) >= cutoffNever {
-		return reasonNeverWatched
+
+	lowWatchReason := ""
+	if rules.LowWatchMinAddedDays > 0 && rules.LowWatchMaxHours > 0 && addedAt != nil {
+		addedDays := now.Sub(*addedAt).Hours() / 24
+		if addedDays >= float64(rules.LowWatchMinAddedDays) && totalWatchHours < rules.LowWatchMaxHours {
+			lowWatchReason = reasonLowWatch
+		}
+	}
+
+	if rules.LowWatchRequire {
+		if lowWatchReason == "" {
+			return ""
+		}
+		if baseReason != "" {
+			return baseReason
+		}
+		return lowWatchReason
+	}
+
+	if baseReason != "" {
+		return baseReason
+	}
+	if lowWatchReason != "" {
+		return lowWatchReason
 	}
 	return ""
 }

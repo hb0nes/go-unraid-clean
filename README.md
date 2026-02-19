@@ -32,6 +32,10 @@ See `configs/config.example.yaml`.
 - `activity_min_percent`: minimum percent complete in Tautulli history to count as activity.
 - `inactivity_days_after_watch`: if any watch activity is older than this, the item is eligible.
 - `never_watched_days_since_added`: if no watch activity and added is older than this, the item is eligible.
+- `low_watch_min_added_days`: only consider low-watch rule if added this many days ago.
+- `low_watch_max_hours`: max total watch hours to qualify as low-watch.
+- `low_watch_require`: when true, only include items that match low-watch (can still use other reasons for labeling).
+- `series_ended_only`: only include series whose status is `ended`.
 
 ### Exceptions
 

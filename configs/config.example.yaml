@@ -14,6 +14,10 @@ rules:
   activity_min_percent: 1
   inactivity_days_after_watch: 30
   never_watched_days_since_added: 180
+  low_watch_min_added_days: 0
+  low_watch_max_hours: 0
+  low_watch_require: false
+  series_ended_only: false
 
 exceptions:
   movies:

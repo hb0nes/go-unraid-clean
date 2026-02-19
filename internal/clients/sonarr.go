@@ -16,6 +16,7 @@ type SonarrSeries struct {
 	Year       int    `json:"year"`
 	TVDBID     int    `json:"tvdbId"`
 	IMDBID     string `json:"imdbId"`
+	Status     string `json:"status"`
 	Path       string `json:"path"`
 	Added      string `json:"added"`
 	Statistics struct {

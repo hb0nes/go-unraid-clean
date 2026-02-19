@@ -41,6 +41,12 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 			topUsers = "(none)"
 		}
 		fmt.Printf("  Top users: %s\n", topUsers)
+		if item.TotalWatchHours > 0 {
+			fmt.Printf("  Total watch hours: %.1f\n", item.TotalWatchHours)
+		}
+		if item.Type == "series" && item.SeriesStatus != "" {
+			fmt.Printf("  Status: %s\n", item.SeriesStatus)
+		}
 		fmt.Printf("  Reason: %s\n", item.Reason)
 		fmt.Printf("  Path: %s\n", item.Path)
 

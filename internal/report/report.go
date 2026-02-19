@@ -30,6 +30,8 @@ type Item struct {
 	LastActivityAt     *time.Time  `json:"last_activity_at,omitempty"`
 	TopUsers           []UserWatch `json:"top_users,omitempty"`
 	TopUsersTotalHours float64     `json:"top_users_total_hours,omitempty"`
+	TotalWatchHours    float64     `json:"total_watch_hours,omitempty"`
+	SeriesStatus       string      `json:"series_status,omitempty"`
 	Reason             string      `json:"reason"`
 }
 
@@ -70,6 +72,7 @@ func WriteCSV(path string, report *Report) error {
 		"title",
 		"radarr_id",
 		"sonarr_id",
+		"series_status",
 		"path",
 		"size_bytes",
 		"size_gib",
@@ -80,6 +83,7 @@ func WriteCSV(path string, report *Report) error {
 		"inactivity_days",
 		"top_users",
 		"top_users_hours_total",
+		"total_watch_hours",
 		"reason",
 	}); err != nil {
 		return fmt.Errorf("write csv header: %w", err)
@@ -91,6 +95,7 @@ func WriteCSV(path string, report *Report) error {
 			item.Title,
 			formatOptionalInt(item.RadarrID),
 			formatOptionalInt(item.SonarrID),
+			item.SeriesStatus,
 			item.Path,
 			fmt.Sprintf("%d", item.SizeBytes),
 			formatSizeGiB(item.SizeBytes),
@@ -101,6 +106,7 @@ func WriteCSV(path string, report *Report) error {
 			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
 			formatTopUsers(item.TopUsers, item.TopUsersTotalHours),
 			formatHours(item.TopUsersTotalHours),
+			formatHours(item.TotalWatchHours),
 			item.Reason,
 		}
 		if err := writer.Write(row); err != nil {
@@ -151,19 +157,21 @@ func PrintTable(report *Report) {
 		return
 	}
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "TYPE\tTITLE\tSIZE(GiB)\tADDED\tFIRST_ACTIVITY\tLAST_ACTIVITY\tGAP_DAYS\tINACTIVITY_DAYS\tTOP_USERS\tREASON\tPATH")
+	fmt.Fprintln(w, "TYPE\tTITLE\tSTATUS\tSIZE(GiB)\tADDED\tFIRST_ACTIVITY\tLAST_ACTIVITY\tGAP_DAYS\tINACTIVITY_DAYS\tWATCH_HOURS\tTOP_USERS\tREASON\tPATH")
 	for _, item := range report.Items {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.Type,
 			item.Title,
+			item.SeriesStatus,
 			formatSizeGiB(item.SizeBytes),
 			formatOptionalTime(item.AddedAt),
 			formatOptionalTime(item.FirstActivityAt),
 			formatOptionalTime(item.LastActivityAt),
 			formatGapDays(item.AddedAt, item.FirstActivityAt, report.GeneratedAt),
 			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
+			formatHours(item.TotalWatchHours),
 			formatTopUsers(item.TopUsers, item.TopUsersTotalHours),
 			item.Reason,
 			item.Path,
