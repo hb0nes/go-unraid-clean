@@ -36,9 +36,11 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 		fmt.Printf("  Last activity: %s\n", formatOptionalTime(item.LastActivityAt))
 		fmt.Printf("  Gap days: %s\n", formatGapDays(item.AddedAt, item.FirstActivityAt, rep.GeneratedAt))
 		fmt.Printf("  Inactivity days: %s\n", formatInactivityDays(item.AddedAt, item.LastActivityAt, rep.GeneratedAt))
-		if len(item.TopUsers) > 0 {
-			fmt.Printf("  Top users: %s\n", formatTopUsers(item.TopUsers, item.TopUsersTotalHours))
+		topUsers := formatTopUsers(item.TopUsers, item.TopUsersTotalHours)
+		if topUsers == "" {
+			topUsers = "(none)"
 		}
+		fmt.Printf("  Top users: %s\n", topUsers)
 		fmt.Printf("  Reason: %s\n", item.Reason)
 		fmt.Printf("  Path: %s\n", item.Path)
 

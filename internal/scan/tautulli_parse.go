@@ -2,6 +2,7 @@ package scan
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -31,7 +32,7 @@ func parseHistoryEntry(raw map[string]any) (historyEntry, bool) {
 	entry.GrandparentGuid = getString(raw, "grandparent_guid")
 	entry.Year = getInt(raw, "year")
 	entry.PercentComplete = getInt(raw, "percent_complete", "percent")
-	entry.User = getString(raw, "user", "username", "friendly_name")
+	entry.User = getUserString(raw)
 
 	when, ok := getUnixTime(raw, "date", "stopped", "started", "last_viewed_at")
 	if !ok {
@@ -146,6 +147,32 @@ func getDurationSeconds(m map[string]any, keys ...string) int64 {
 		}
 	}
 	return 0
+}
+
+func getUserString(m map[string]any) string {
+	if val, ok := m["user"]; ok {
+		switch v := val.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case json.Number:
+			return v.String()
+		case float64, int, int64:
+			return fmt.Sprintf("%v", v)
+		case map[string]any:
+			if name := getString(v, "friendly_name", "username", "user", "name"); name != "" {
+				return name
+			}
+		}
+	}
+	if name := getString(m, "friendly_name", "username", "user_name", "account_name"); name != "" {
+		return name
+	}
+	if id := getString(m, "user_id", "account_id"); id != "" {
+		return id
+	}
+	return ""
 }
 
 func extractIDsFromGuid(guid string) (tmdbID int, tvdbID int, imdbID string) {
