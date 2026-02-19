@@ -21,6 +21,6 @@ func Setup(verbose bool) {
 	logger = zerolog.New(writer).Level(level).With().Timestamp().Logger()
 }
 
-func L() zerolog.Logger {
-	return logger
+func L() *zerolog.Logger {
+	return &logger
 }

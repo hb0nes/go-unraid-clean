@@ -171,16 +171,18 @@ func deleteFilesOnly(ctx context.Context, radarr *clients.RadarrClient, sonarr *
 		if item.RadarrID == nil {
 			return fmt.Errorf("missing radarr_id")
 		}
+		logging.L().Debug().Str("title", item.Title).Int("radarr_id", *item.RadarrID).Msg("Deleting movie files only")
 		files, err := radarr.MovieFiles(ctx, *item.RadarrID)
 		if err != nil {
-			return err
+			return fmt.Errorf("movie %s (%d): %w", item.Title, *item.RadarrID, err)
 		}
 		if len(files) == 0 {
 			return fmt.Errorf("no movie files found")
 		}
+		logging.L().Debug().Int("count", len(files)).Msg("Movie files to delete")
 		for _, file := range files {
 			if err := radarr.DeleteMovieFile(ctx, file.ID); err != nil {
-				return err
+				return fmt.Errorf("movie %s (%d): %w", item.Title, *item.RadarrID, err)
 			}
 		}
 		return nil
@@ -188,16 +190,18 @@ func deleteFilesOnly(ctx context.Context, radarr *clients.RadarrClient, sonarr *
 		if item.SonarrID == nil {
 			return fmt.Errorf("missing sonarr_id")
 		}
+		logging.L().Debug().Str("title", item.Title).Int("sonarr_id", *item.SonarrID).Msg("Deleting all episode files")
 		ids, err := episodeFileIDs(ctx, sonarr, *item.SonarrID, 0)
 		if err != nil {
-			return err
+			return fmt.Errorf("series %s (%d): %w", item.Title, *item.SonarrID, err)
 		}
 		if len(ids) == 0 {
 			return fmt.Errorf("no episode files found")
 		}
+		logging.L().Debug().Int("count", len(ids)).Msg("Episode files to delete")
 		for _, id := range ids {
 			if err := sonarr.DeleteEpisodeFile(ctx, id); err != nil {
-				return err
+				return fmt.Errorf("series %s (%d): %w", item.Title, *item.SonarrID, err)
 			}
 		}
 		return nil
@@ -210,9 +214,10 @@ func keepLastSeason(ctx context.Context, sonarr *clients.SonarrClient, item repo
 	if item.SonarrID == nil {
 		return fmt.Errorf("missing sonarr_id")
 	}
+	logging.L().Debug().Str("title", item.Title).Int("sonarr_id", *item.SonarrID).Msg("Fetching series detail for last season")
 	series, err := sonarr.SeriesByID(ctx, *item.SonarrID)
 	if err != nil {
-		return err
+		return fmt.Errorf("series %s (%d): %w", item.Title, *item.SonarrID, err)
 	}
 	lastSeason := 0
 	for _, season := range series.Seasons {
@@ -229,22 +234,25 @@ func keepLastSeason(ctx context.Context, sonarr *clients.SonarrClient, item repo
 	if lastSeason == 0 {
 		return fmt.Errorf("no seasons with files found")
 	}
+	logging.L().Debug().Int("season", lastSeason).Msg("Keeping last season")
 	ids, err := episodeFileIDs(ctx, sonarr, *item.SonarrID, lastSeason)
 	if err != nil {
-		return err
+		return fmt.Errorf("series %s (%d): %w", item.Title, *item.SonarrID, err)
 	}
 	if len(ids) == 0 {
 		return fmt.Errorf("no episode files found to delete")
 	}
+	logging.L().Debug().Int("count", len(ids)).Msg("Episode files to delete (keeping last season)")
 	for _, id := range ids {
 		if err := sonarr.DeleteEpisodeFile(ctx, id); err != nil {
-			return err
+			return fmt.Errorf("series %s (%d): %w", item.Title, *item.SonarrID, err)
 		}
 	}
 	return nil
 }
 
 func episodeFileIDs(ctx context.Context, sonarr *clients.SonarrClient, seriesID int, keepSeason int) ([]int, error) {
+	logging.L().Debug().Int("sonarr_id", seriesID).Int("keep_season", keepSeason).Msg("Fetching episodes for series")
 	episodes, err := sonarr.Episodes(ctx, seriesID)
 	if err != nil {
 		return nil, err

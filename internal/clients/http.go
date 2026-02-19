@@ -33,7 +33,20 @@ func NewHTTPClient(baseURL, apiKey string) (*HTTPClient, error) {
 
 func (c *HTTPClient) Resolve(path string) string {
 	u := *c.BaseURL
-	u.Path = strings.TrimRight(u.Path, "/") + "/" + strings.TrimLeft(path, "/")
+	trimmed := strings.TrimLeft(path, "/")
+	rawQuery := ""
+	if idx := strings.Index(trimmed, "?"); idx >= 0 {
+		rawQuery = trimmed[idx+1:]
+		trimmed = trimmed[:idx]
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/" + trimmed
+	if rawQuery != "" {
+		if u.RawQuery != "" {
+			u.RawQuery = u.RawQuery + "&" + rawQuery
+		} else {
+			u.RawQuery = rawQuery
+		}
+	}
 	return u.String()
 }
 
