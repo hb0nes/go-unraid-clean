@@ -19,7 +19,7 @@ go build ./cmd/go-unraid-clean
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table --sort gap --order desc
 ./go-unraid-clean apply --config config.yaml --in review.json
 ./go-unraid-clean apply --config config.yaml --in review.json --confirm
-./go-unraid-clean apply --config config.yaml --in review.json --interactive
+./go-unraid-clean interactive --config config.yaml --in review.json
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
 ```
 
@@ -51,7 +51,7 @@ Supported sort keys:
 
 ### Interactive Review
 
-Use `apply --interactive` to step through items one-by-one and choose actions:
+Use `interactive` to step through items one-by-one and choose actions:
 - keep
 - ignore (add to exceptions in config)
 - delete entirely
