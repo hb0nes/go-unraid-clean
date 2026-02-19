@@ -1,0 +1,30 @@
+tautulli:
+  base_url: "http://localhost:8181"
+  api_key: "TAUTULLI_KEY"
+
+sonarr:
+  base_url: "http://localhost:8989"
+  api_key: "SONARR_KEY"
+
+radarr:
+  base_url: "http://localhost:7878"
+  api_key: "RADARR_KEY"
+
+rules:
+  activity_min_percent: 1
+  inactivity_days_after_watch: 30
+  never_watched_days_since_added: 180
+
+exceptions:
+  movies:
+    radarr_ids: []
+    tmdb_ids: []
+    imdb_ids: []
+    titles: []
+    path_prefixes: []
+  series:
+    sonarr_ids: []
+    tvdb_ids: []
+    imdb_ids: []
+    titles: []
+    path_prefixes: []

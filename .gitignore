@@ -1,0 +1,12 @@
+# Local config and outputs
+config.yaml
+configs/config.yaml
+review.json
+review.csv
+
+# Build artifacts
+/go-unraid-clean
+/bin/
+
+# OS
+.DS_Store
