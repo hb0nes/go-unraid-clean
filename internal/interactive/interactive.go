@@ -228,12 +228,8 @@ func deleteItem(ctx context.Context, radarr *clients.RadarrClient, sonarr *clien
 		if err := sonarr.DeleteSeries(ctx, *item.SonarrID, true); err != nil {
 			return err
 		}
-		exists, err := sonarr.SeriesExists(ctx, *item.SonarrID)
-		if err != nil {
+		if err := waitForSeriesRemoval(ctx, sonarr, *item.SonarrID); err != nil {
 			return err
-		}
-		if exists {
-			return fmt.Errorf("series still exists after delete (sonarr_id=%d)", *item.SonarrID)
 		}
 		return nil
 	default:
@@ -351,6 +347,23 @@ func episodeFileIDs(ctx context.Context, sonarr *clients.SonarrClient, seriesID 
 		out = append(out, id)
 	}
 	return out, nil
+}
+
+func waitForSeriesRemoval(ctx context.Context, sonarr *clients.SonarrClient, seriesID int) error {
+	const attempts = 5
+	delay := 500 * time.Millisecond
+	for i := 0; i < attempts; i++ {
+		exists, err := sonarr.SeriesExists(ctx, seriesID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+		logging.L().Debug().Int("sonarr_id", seriesID).Int("attempt", i+1).Msg("Series still exists after delete; waiting")
+		time.Sleep(delay)
+	}
+	return fmt.Errorf("series still exists after delete (sonarr_id=%d)", seriesID)
 }
 
 func formatOptionalTime(val *time.Time) string {

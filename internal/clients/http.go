@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,10 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"go-unraid-clean/internal/logging"
+
+	"github.com/rs/zerolog"
 )
 
 type HTTPClient struct {
@@ -73,9 +78,36 @@ func doRequest(ctx context.Context, client *http.Client, req *http.Request) (*ht
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
+	log := logging.L()
+	if log.GetLevel() <= zerolog.DebugLevel {
+		log.Debug().Str("method", req.Method).Str("url", req.URL.String()).Msg("HTTP request")
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	if log.GetLevel() <= zerolog.DebugLevel {
+		log.Debug().Int("status", resp.StatusCode).Str("url", req.URL.String()).Msg("HTTP response")
+	}
+	if log.GetLevel() <= zerolog.TraceLevel {
+		body, err := readBody(resp)
+		if err != nil {
+			return nil, err
+		}
+		log.Trace().
+			Int("status", resp.StatusCode).
+			Str("url", req.URL.String()).
+			Str("body", truncateBody(string(body))).
+			Msg("HTTP response body")
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+	}
 	return resp, nil
+}
+
+func truncateBody(body string) string {
+	const limit = 2000
+	if len(body) <= limit {
+		return body
+	}
+	return body[:limit] + "...(truncated)"
 }

@@ -77,10 +77,11 @@ Use `--dry-run` to preview changes without writing.
 
 ### Verbose Logging
 
-Use `-v` to enable verbose logging:
+Use `-v` for debug logging and `-vv` for trace logging (includes HTTP responses):
 
 ```bash
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
+./go-unraid-clean interactive --config config.yaml --in review.json -vv
 ```
 
 ## Status

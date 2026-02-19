@@ -9,9 +9,11 @@ import (
 
 var logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
 
-func Setup(verbose bool) {
+func Setup(verbosity int) {
 	level := zerolog.InfoLevel
-	if verbose {
+	if verbosity >= 2 {
+		level = zerolog.TraceLevel
+	} else if verbosity == 1 {
 		level = zerolog.DebugLevel
 	}
 	writer := zerolog.ConsoleWriter{

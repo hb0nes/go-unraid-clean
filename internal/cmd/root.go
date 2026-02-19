@@ -10,7 +10,7 @@ import (
 )
 
 var configPath string
-var verbose bool
+var verbosity int
 
 var rootCmd = &cobra.Command{
 	Use:           "go-unraid-clean",
@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		logging.Setup(verbose)
+		logging.Setup(verbosity)
 	},
 }
 
@@ -31,5 +31,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "config.yaml", "Path to config file")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "Increase verbosity (-v for debug, -vv for trace)")
 }
