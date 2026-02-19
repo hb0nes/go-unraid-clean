@@ -3,10 +3,12 @@ package scan
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"go-unraid-clean/internal/clients"
 	"go-unraid-clean/internal/config"
+	"go-unraid-clean/internal/logging"
 	"go-unraid-clean/internal/report"
 )
 
@@ -15,7 +17,13 @@ const (
 	reasonNeverWatched  = "never_watched"
 )
 
-func Run(ctx context.Context, cfg config.Config) (*report.Report, error) {
+type Options struct {
+	SortBy    string
+	SortOrder string
+}
+
+func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, error) {
+	log := logging.L()
 	radarr, err := clients.NewRadarrClient(cfg.Radarr.BaseURL, cfg.Radarr.APIKey)
 	if err != nil {
 		return nil, err
@@ -29,18 +37,24 @@ func Run(ctx context.Context, cfg config.Config) (*report.Report, error) {
 		return nil, err
 	}
 
+	log.Info().Msg("Fetching Radarr movies")
 	movies, err := radarr.Movies(ctx)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug().Int("count", len(movies)).Msg("Loaded Radarr movies")
+	log.Info().Msg("Fetching Sonarr series")
 	series, err := sonarr.Series(ctx)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug().Int("count", len(series)).Msg("Loaded Sonarr series")
+	log.Info().Msg("Fetching Tautulli history")
 	entries, err := tautulli.History(ctx)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug().Int("count", len(entries)).Msg("Loaded Tautulli history entries")
 
 	activity := buildActivityIndex(entries, cfg.Rules.ActivityMinPercent)
 	exceptions := newExceptionIndex(cfg)
@@ -59,10 +73,13 @@ func Run(ctx context.Context, cfg config.Config) (*report.Report, error) {
 			continue
 		}
 		if exceptions.isMovieException(movie.ID, movie.TMDBID, movie.IMDBID, movie.Title, movie.Path) {
+			log.Debug().Str("title", movie.Title).Msg("Skipping movie due to exception")
 			continue
 		}
 
-		lastActivity := activity.movieLastActivity(movie.TMDBID, movie.IMDBID, normalizeTitleYear(movie.Title, movie.Year))
+		titleKey := normalizeTitleYear(movie.Title, movie.Year)
+		firstActivity := activity.movieFirstActivity(movie.TMDBID, movie.IMDBID, titleKey)
+		lastActivity := activity.movieLastActivity(movie.TMDBID, movie.IMDBID, titleKey)
 		addedAt := parseTime(movie.Added)
 
 		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
@@ -72,26 +89,31 @@ func Run(ctx context.Context, cfg config.Config) (*report.Report, error) {
 
 		id := movie.ID
 		rep.Items = append(rep.Items, report.Item{
-			Type:           "movie",
-			Title:          fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
-			RadarrID:       &id,
-			Path:           movie.Path,
-			SizeBytes:      movie.SizeOnDisk,
-			AddedAt:        addedAt,
-			LastActivityAt: lastActivity,
-			Reason:         reason,
+			Type:            "movie",
+			Title:           fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
+			RadarrID:        &id,
+			Path:            movie.Path,
+			SizeBytes:       movie.SizeOnDisk,
+			AddedAt:         addedAt,
+			FirstActivityAt: firstActivity,
+			LastActivityAt:  lastActivity,
+			Reason:          reason,
 		})
 	}
+	log.Info().Int("count", len(rep.Items)).Msg("Movies flagged for review")
 
 	for _, show := range series {
 		if show.Statistics.SizeOnDisk == 0 {
 			continue
 		}
 		if exceptions.isSeriesException(show.ID, show.TVDBID, show.IMDBID, show.Title, show.Path) {
+			log.Debug().Str("title", show.Title).Msg("Skipping series due to exception")
 			continue
 		}
 
-		lastActivity := activity.seriesLastActivity(show.TVDBID, show.IMDBID, normalizeTitle(show.Title))
+		titleKey := normalizeTitle(show.Title)
+		firstActivity := activity.seriesFirstActivity(show.TVDBID, show.IMDBID, titleKey)
+		lastActivity := activity.seriesLastActivity(show.TVDBID, show.IMDBID, titleKey)
 		addedAt := parseTime(show.Added)
 		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
 		if reason == "" {
@@ -100,15 +122,21 @@ func Run(ctx context.Context, cfg config.Config) (*report.Report, error) {
 
 		id := show.ID
 		rep.Items = append(rep.Items, report.Item{
-			Type:           "series",
-			Title:          show.Title,
-			SonarrID:       &id,
-			Path:           show.Path,
-			SizeBytes:      show.Statistics.SizeOnDisk,
-			AddedAt:        addedAt,
-			LastActivityAt: lastActivity,
-			Reason:         reason,
+			Type:            "series",
+			Title:           show.Title,
+			SonarrID:        &id,
+			Path:            show.Path,
+			SizeBytes:       show.Statistics.SizeOnDisk,
+			AddedAt:         addedAt,
+			FirstActivityAt: firstActivity,
+			LastActivityAt:  lastActivity,
+			Reason:          reason,
 		})
+	}
+	log.Info().Int("count", len(rep.Items)).Msg("Total items flagged for review")
+
+	if err := sortReport(rep, opts); err != nil {
+		return nil, err
 	}
 
 	return rep, nil
@@ -182,4 +210,105 @@ func parseTime(value string) *time.Time {
 		return &utc
 	}
 	return nil
+}
+
+func sortReport(rep *report.Report, opts Options) error {
+	sortBy := opts.SortBy
+	if sortBy == "" {
+		sortBy = "size"
+	}
+	order := opts.SortOrder
+	if order == "" {
+		order = "desc"
+	}
+	desc := order != "asc"
+
+	switch sortBy {
+	case "size":
+		sort.SliceStable(rep.Items, func(i, j int) bool {
+			if desc {
+				return rep.Items[i].SizeBytes > rep.Items[j].SizeBytes
+			}
+			return rep.Items[i].SizeBytes < rep.Items[j].SizeBytes
+		})
+	case "added":
+		sort.SliceStable(rep.Items, func(i, j int) bool {
+			left := timeValue(rep.Items[i].AddedAt)
+			right := timeValue(rep.Items[j].AddedAt)
+			if desc {
+				return left.After(right)
+			}
+			return left.Before(right)
+		})
+	case "gap":
+		sort.SliceStable(rep.Items, func(i, j int) bool {
+			left := gapDays(rep.Items[i].AddedAt, rep.Items[i].FirstActivityAt, rep.GeneratedAt)
+			right := gapDays(rep.Items[j].AddedAt, rep.Items[j].FirstActivityAt, rep.GeneratedAt)
+			if desc {
+				return left > right
+			}
+			return left < right
+		})
+	case "last_activity":
+		sort.SliceStable(rep.Items, func(i, j int) bool {
+			left := timeValue(rep.Items[i].LastActivityAt)
+			right := timeValue(rep.Items[j].LastActivityAt)
+			if desc {
+				return left.After(right)
+			}
+			return left.Before(right)
+		})
+	case "inactivity":
+		sort.SliceStable(rep.Items, func(i, j int) bool {
+			left := inactivityDays(rep.Items[i], rep.GeneratedAt)
+			right := inactivityDays(rep.Items[j], rep.GeneratedAt)
+			if desc {
+				return left > right
+			}
+			return left < right
+		})
+	default:
+		return fmt.Errorf("unsupported sort option: %s", sortBy)
+	}
+	return nil
+}
+
+func timeValue(val *time.Time) time.Time {
+	if val == nil {
+		return time.Time{}
+	}
+	return val.UTC()
+}
+
+func gapDays(addedAt *time.Time, firstActivityAt *time.Time, generatedAt time.Time) float64 {
+	if addedAt == nil {
+		return 0
+	}
+	end := generatedAt
+	if firstActivityAt != nil {
+		end = *firstActivityAt
+	}
+	span := end.Sub(*addedAt).Hours() / 24
+	if span < 0 {
+		span = 0
+	}
+	return span
+}
+
+func inactivityDays(item report.Item, generatedAt time.Time) float64 {
+	if item.LastActivityAt != nil {
+		span := generatedAt.Sub(*item.LastActivityAt).Hours() / 24
+		if span < 0 {
+			return 0
+		}
+		return span
+	}
+	if item.AddedAt != nil {
+		span := generatedAt.Sub(*item.AddedAt).Hours() / 24
+		if span < 0 {
+			return 0
+		}
+		return span
+	}
+	return 0
 }

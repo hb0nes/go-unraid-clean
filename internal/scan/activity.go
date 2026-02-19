@@ -2,23 +2,28 @@ package scan
 
 import "time"
 
+type activityWindow struct {
+	First time.Time
+	Last  time.Time
+}
+
 type activityIndex struct {
-	moviesByTMDB     map[int]time.Time
-	moviesByIMDB     map[string]time.Time
-	moviesByTitleKey map[string]time.Time
-	seriesByTVDB     map[int]time.Time
-	seriesByIMDB     map[string]time.Time
-	seriesByTitleKey map[string]time.Time
+	moviesByTMDB     map[int]activityWindow
+	moviesByIMDB     map[string]activityWindow
+	moviesByTitleKey map[string]activityWindow
+	seriesByTVDB     map[int]activityWindow
+	seriesByIMDB     map[string]activityWindow
+	seriesByTitleKey map[string]activityWindow
 }
 
 func newActivityIndex() *activityIndex {
 	return &activityIndex{
-		moviesByTMDB:     map[int]time.Time{},
-		moviesByIMDB:     map[string]time.Time{},
-		moviesByTitleKey: map[string]time.Time{},
-		seriesByTVDB:     map[int]time.Time{},
-		seriesByIMDB:     map[string]time.Time{},
-		seriesByTitleKey: map[string]time.Time{},
+		moviesByTMDB:     map[int]activityWindow{},
+		moviesByIMDB:     map[string]activityWindow{},
+		moviesByTitleKey: map[string]activityWindow{},
+		seriesByTVDB:     map[int]activityWindow{},
+		seriesByIMDB:     map[string]activityWindow{},
+		seriesByTitleKey: map[string]activityWindow{},
 	}
 }
 
@@ -48,18 +53,18 @@ func (a *activityIndex) recordSeries(tvdbID int, imdbID string, titleKey string,
 
 func (a *activityIndex) movieLastActivity(tmdbID int, imdbID string, titleKey string) *time.Time {
 	if tmdbID > 0 {
-		if t, ok := a.moviesByTMDB[tmdbID]; ok {
-			return &t
+		if w, ok := a.moviesByTMDB[tmdbID]; ok {
+			return &w.Last
 		}
 	}
 	if imdbID != "" {
-		if t, ok := a.moviesByIMDB[imdbID]; ok {
-			return &t
+		if w, ok := a.moviesByIMDB[imdbID]; ok {
+			return &w.Last
 		}
 	}
 	if titleKey != "" {
-		if t, ok := a.moviesByTitleKey[titleKey]; ok {
-			return &t
+		if w, ok := a.moviesByTitleKey[titleKey]; ok {
+			return &w.Last
 		}
 	}
 	return nil
@@ -67,29 +72,73 @@ func (a *activityIndex) movieLastActivity(tmdbID int, imdbID string, titleKey st
 
 func (a *activityIndex) seriesLastActivity(tvdbID int, imdbID string, titleKey string) *time.Time {
 	if tvdbID > 0 {
-		if t, ok := a.seriesByTVDB[tvdbID]; ok {
-			return &t
+		if w, ok := a.seriesByTVDB[tvdbID]; ok {
+			return &w.Last
 		}
 	}
 	if imdbID != "" {
-		if t, ok := a.seriesByIMDB[imdbID]; ok {
-			return &t
+		if w, ok := a.seriesByIMDB[imdbID]; ok {
+			return &w.Last
 		}
 	}
 	if titleKey != "" {
-		if t, ok := a.seriesByTitleKey[titleKey]; ok {
-			return &t
+		if w, ok := a.seriesByTitleKey[titleKey]; ok {
+			return &w.Last
 		}
 	}
 	return nil
 }
 
-func recordTime[K comparable](m map[K]time.Time, key K, when time.Time) {
-	if prev, ok := m[key]; ok {
-		if when.After(prev) {
-			m[key] = when
+func (a *activityIndex) movieFirstActivity(tmdbID int, imdbID string, titleKey string) *time.Time {
+	if tmdbID > 0 {
+		if w, ok := a.moviesByTMDB[tmdbID]; ok {
+			return &w.First
 		}
+	}
+	if imdbID != "" {
+		if w, ok := a.moviesByIMDB[imdbID]; ok {
+			return &w.First
+		}
+	}
+	if titleKey != "" {
+		if w, ok := a.moviesByTitleKey[titleKey]; ok {
+			return &w.First
+		}
+	}
+	return nil
+}
+
+func (a *activityIndex) seriesFirstActivity(tvdbID int, imdbID string, titleKey string) *time.Time {
+	if tvdbID > 0 {
+		if w, ok := a.seriesByTVDB[tvdbID]; ok {
+			return &w.First
+		}
+	}
+	if imdbID != "" {
+		if w, ok := a.seriesByIMDB[imdbID]; ok {
+			return &w.First
+		}
+	}
+	if titleKey != "" {
+		if w, ok := a.seriesByTitleKey[titleKey]; ok {
+			return &w.First
+		}
+	}
+	return nil
+}
+
+func recordTime[K comparable](m map[K]activityWindow, key K, when time.Time) {
+	if prev, ok := m[key]; ok {
+		first := prev.First
+		last := prev.Last
+		if when.Before(first) {
+			first = when
+		}
+		if when.After(last) {
+			last = when
+		}
+		m[key] = activityWindow{First: first, Last: last}
 		return
 	}
-	m[key] = when
+	m[key] = activityWindow{First: when, Last: when}
 }

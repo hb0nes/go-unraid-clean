@@ -7,10 +7,12 @@ import (
 
 	"go-unraid-clean/internal/clients"
 	"go-unraid-clean/internal/config"
+	"go-unraid-clean/internal/logging"
 	"go-unraid-clean/internal/report"
 )
 
 func Run(ctx context.Context, cfg config.Config, rep *report.Report) error {
+	log := logging.L()
 	radarr, err := clients.NewRadarrClient(cfg.Radarr.BaseURL, cfg.Radarr.APIKey)
 	if err != nil {
 		return err
@@ -20,6 +22,7 @@ func Run(ctx context.Context, cfg config.Config, rep *report.Report) error {
 		return err
 	}
 
+	log.Info().Int("count", len(rep.Items)).Msg("Applying deletions")
 	var errs []error
 	for _, item := range rep.Items {
 		switch item.Type {
@@ -28,7 +31,7 @@ func Run(ctx context.Context, cfg config.Config, rep *report.Report) error {
 				errs = append(errs, fmt.Errorf("movie %q has no radarr_id", item.Title))
 				continue
 			}
-			fmt.Printf("Deleting movie: %s (radarr_id=%d)\n", item.Title, *item.RadarrID)
+			log.Info().Str("title", item.Title).Int("radarr_id", *item.RadarrID).Msg("Deleting movie")
 			if err := radarr.DeleteMovie(ctx, *item.RadarrID, true); err != nil {
 				errs = append(errs, err)
 			}
@@ -37,7 +40,7 @@ func Run(ctx context.Context, cfg config.Config, rep *report.Report) error {
 				errs = append(errs, fmt.Errorf("series %q has no sonarr_id", item.Title))
 				continue
 			}
-			fmt.Printf("Deleting series: %s (sonarr_id=%d)\n", item.Title, *item.SonarrID)
+			log.Info().Str("title", item.Title).Int("sonarr_id", *item.SonarrID).Msg("Deleting series")
 			if err := sonarr.DeleteSeries(ctx, *item.SonarrID, true); err != nil {
 				errs = append(errs, err)
 			}

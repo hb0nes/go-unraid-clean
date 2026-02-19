@@ -15,15 +15,16 @@ type Report struct {
 }
 
 type Item struct {
-	Type           string     `json:"type"`
-	Title          string     `json:"title"`
-	RadarrID       *int       `json:"radarr_id,omitempty"`
-	SonarrID       *int       `json:"sonarr_id,omitempty"`
-	Path           string     `json:"path"`
-	SizeBytes      int64      `json:"size_bytes"`
-	AddedAt        *time.Time `json:"added_at,omitempty"`
-	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
-	Reason         string     `json:"reason"`
+	Type            string     `json:"type"`
+	Title           string     `json:"title"`
+	RadarrID        *int       `json:"radarr_id,omitempty"`
+	SonarrID        *int       `json:"sonarr_id,omitempty"`
+	Path            string     `json:"path"`
+	SizeBytes       int64      `json:"size_bytes"`
+	AddedAt         *time.Time `json:"added_at,omitempty"`
+	FirstActivityAt *time.Time `json:"first_activity_at,omitempty"`
+	LastActivityAt  *time.Time `json:"last_activity_at,omitempty"`
+	Reason          string     `json:"reason"`
 }
 
 type Summary struct {
@@ -62,7 +63,10 @@ func WriteCSV(path string, report *Report) error {
 		"size_bytes",
 		"size_gib",
 		"added_at",
+		"first_activity_at",
 		"last_activity_at",
+		"gap_days",
+		"inactivity_days",
 		"reason",
 	}); err != nil {
 		return fmt.Errorf("write csv header: %w", err)
@@ -78,7 +82,10 @@ func WriteCSV(path string, report *Report) error {
 			fmt.Sprintf("%d", item.SizeBytes),
 			formatSizeGiB(item.SizeBytes),
 			formatOptionalTime(item.AddedAt),
+			formatOptionalTime(item.FirstActivityAt),
 			formatOptionalTime(item.LastActivityAt),
+			formatGapDays(item.AddedAt, item.FirstActivityAt, report.GeneratedAt),
+			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
 			item.Reason,
 		}
 		if err := writer.Write(row); err != nil {
@@ -129,16 +136,19 @@ func PrintTable(report *Report) {
 		return
 	}
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "TYPE\tTITLE\tSIZE(GiB)\tADDED\tLAST_ACTIVITY\tREASON\tPATH")
+	fmt.Fprintln(w, "TYPE\tTITLE\tSIZE(GiB)\tADDED\tFIRST_ACTIVITY\tLAST_ACTIVITY\tGAP_DAYS\tINACTIVITY_DAYS\tREASON\tPATH")
 	for _, item := range report.Items {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.Type,
 			item.Title,
 			formatSizeGiB(item.SizeBytes),
 			formatOptionalTime(item.AddedAt),
+			formatOptionalTime(item.FirstActivityAt),
 			formatOptionalTime(item.LastActivityAt),
+			formatGapDays(item.AddedAt, item.FirstActivityAt, report.GeneratedAt),
+			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
 			item.Reason,
 			item.Path,
 		)
@@ -166,4 +176,33 @@ func formatSizeGiB(bytes int64) string {
 	}
 	gib := float64(bytes) / (1024 * 1024 * 1024)
 	return fmt.Sprintf("%.2f", gib)
+}
+
+func formatGapDays(addedAt *time.Time, firstActivityAt *time.Time, generatedAt time.Time) string {
+	if addedAt == nil {
+		return ""
+	}
+	end := generatedAt
+	if firstActivityAt != nil {
+		end = *firstActivityAt
+	}
+	span := end.Sub(*addedAt).Hours() / 24
+	if span < 0 {
+		span = 0
+	}
+	return fmt.Sprintf("%.1f", span)
+}
+
+func formatInactivityDays(addedAt *time.Time, lastActivityAt *time.Time, generatedAt time.Time) string {
+	end := generatedAt
+	if lastActivityAt != nil {
+		end = *lastActivityAt
+	} else if addedAt == nil {
+		return ""
+	}
+	span := generatedAt.Sub(end).Hours() / 24
+	if span < 0 {
+		span = 0
+	}
+	return fmt.Sprintf("%.1f", span)
 }

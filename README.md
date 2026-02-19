@@ -15,10 +15,11 @@ Cobra gives you:
 cp configs/config.example.yaml config.yaml
 
 go build ./cmd/go-unraid-clean
-./go-unraid-clean scan --config config.yaml --out review.json
-./go-unraid-clean scan --config config.yaml --csv review.csv --table
+./go-unraid-clean scan --config config.yaml --out review.json --sort size --order desc
+./go-unraid-clean scan --config config.yaml --csv review.csv --table --sort gap --order desc
 ./go-unraid-clean apply --config config.yaml --in review.json
 ./go-unraid-clean apply --config config.yaml --in review.json --confirm
+./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
 ```
 
 ## Config
@@ -35,6 +36,25 @@ See `configs/config.example.yaml`.
 
 Use `exceptions` to keep favorites from ever being listed. You can exclude by IDs, titles, or path prefixes.
 IDs are most reliable; titles are matched case-insensitively after normalization.
+
+### Sorting
+
+Use `--sort` to control ordering in the report and `--order` for direction.
+
+Supported sort keys:
+- `size` (size on disk)
+- `added` (date added)
+- `gap` (days between added and first watch; if never watched, uses age since added)
+- `last_activity` (timestamp of last watch activity)
+- `inactivity` (days since last activity; if never watched, uses age since added)
+
+### Verbose Logging
+
+Use `-v` to enable verbose logging:
+
+```bash
+./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
+```
 
 ## Status
 

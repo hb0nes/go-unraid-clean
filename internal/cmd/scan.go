@@ -14,6 +14,8 @@ import (
 var scanOut string
 var scanCSV string
 var scanTable bool
+var scanSort string
+var scanOrder string
 
 var scanCmd = &cobra.Command{
 	Use:   "scan",
@@ -26,7 +28,10 @@ var scanCmd = &cobra.Command{
 			return err
 		}
 
-		rep, err := scan.Run(ctx, cfg)
+		rep, err := scan.Run(ctx, cfg, scan.Options{
+			SortBy:    scanSort,
+			SortOrder: scanOrder,
+		})
 		if err != nil {
 			return err
 		}
@@ -57,4 +62,6 @@ func init() {
 	scanCmd.Flags().StringVar(&scanOut, "out", "review.json", "Output path for the review report")
 	scanCmd.Flags().StringVar(&scanCSV, "csv", "", "Optional CSV output path for review")
 	scanCmd.Flags().BoolVar(&scanTable, "table", false, "Print a pretty table of results to stdout")
+	scanCmd.Flags().StringVar(&scanSort, "sort", "size", "Sort by: size, added, gap, last_activity, inactivity")
+	scanCmd.Flags().StringVar(&scanOrder, "order", "desc", "Sort order: asc or desc")
 }
