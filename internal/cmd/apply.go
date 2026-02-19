@@ -6,6 +6,7 @@ import (
 
 	"go-unraid-clean/internal/apply"
 	"go-unraid-clean/internal/config"
+	"go-unraid-clean/internal/interactive"
 	"go-unraid-clean/internal/report"
 
 	"github.com/spf13/cobra"
@@ -13,6 +14,7 @@ import (
 
 var applyIn string
 var applyConfirm bool
+var applyInteractive bool
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
@@ -28,6 +30,10 @@ var applyCmd = &cobra.Command{
 		rep, err := report.ReadJSON(applyIn)
 		if err != nil {
 			return err
+		}
+
+		if applyInteractive {
+			return interactive.Run(ctx, configPath, cfg, rep)
 		}
 
 		summary := report.Summarize(rep)
@@ -52,4 +58,5 @@ func init() {
 	rootCmd.AddCommand(applyCmd)
 	applyCmd.Flags().StringVar(&applyIn, "in", "review.json", "Input review report to apply")
 	applyCmd.Flags().BoolVar(&applyConfirm, "confirm", false, "Actually delete items from Sonarr/Radarr")
+	applyCmd.Flags().BoolVarP(&applyInteractive, "interactive", "i", false, "Interactively review and apply actions per item")
 }

@@ -19,6 +19,7 @@ go build ./cmd/go-unraid-clean
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table --sort gap --order desc
 ./go-unraid-clean apply --config config.yaml --in review.json
 ./go-unraid-clean apply --config config.yaml --in review.json --confirm
+./go-unraid-clean apply --config config.yaml --in review.json --interactive
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
 ```
 
@@ -47,6 +48,15 @@ Supported sort keys:
 - `gap` (days between added and first watch; if never watched, uses age since added)
 - `last_activity` (timestamp of last watch activity)
 - `inactivity` (days since last activity; if never watched, uses age since added)
+
+### Interactive Review
+
+Use `apply --interactive` to step through items one-by-one and choose actions:
+- keep
+- ignore (add to exceptions in config)
+- delete entirely
+- delete files only (keep movie/show entry)
+- keep last season (series only)
 
 ### Verbose Logging
 

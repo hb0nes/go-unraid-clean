@@ -19,6 +19,9 @@ type Item struct {
 	Title           string     `json:"title"`
 	RadarrID        *int       `json:"radarr_id,omitempty"`
 	SonarrID        *int       `json:"sonarr_id,omitempty"`
+	TMDBID          *int       `json:"tmdb_id,omitempty"`
+	TVDBID          *int       `json:"tvdb_id,omitempty"`
+	IMDBID          string     `json:"imdb_id,omitempty"`
 	Path            string     `json:"path"`
 	SizeBytes       int64      `json:"size_bytes"`
 	AddedAt         *time.Time `json:"added_at,omitempty"`

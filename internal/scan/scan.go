@@ -88,10 +88,17 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 		}
 
 		id := movie.ID
+		var tmdbPtr *int
+		if movie.TMDBID > 0 {
+			tmdb := movie.TMDBID
+			tmdbPtr = &tmdb
+		}
 		rep.Items = append(rep.Items, report.Item{
 			Type:            "movie",
 			Title:           fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
 			RadarrID:        &id,
+			TMDBID:          tmdbPtr,
+			IMDBID:          movie.IMDBID,
 			Path:            movie.Path,
 			SizeBytes:       movie.SizeOnDisk,
 			AddedAt:         addedAt,
@@ -121,10 +128,17 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 		}
 
 		id := show.ID
+		var tvdbPtr *int
+		if show.TVDBID > 0 {
+			tvdb := show.TVDBID
+			tvdbPtr = &tvdb
+		}
 		rep.Items = append(rep.Items, report.Item{
 			Type:            "series",
 			Title:           show.Title,
 			SonarrID:        &id,
+			TVDBID:          tvdbPtr,
+			IMDBID:          show.IMDBID,
 			Path:            show.Path,
 			SizeBytes:       show.Statistics.SizeOnDisk,
 			AddedAt:         addedAt,
