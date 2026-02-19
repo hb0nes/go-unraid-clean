@@ -218,12 +218,24 @@ func deleteItem(ctx context.Context, radarr *clients.RadarrClient, sonarr *clien
 		if item.RadarrID == nil {
 			return fmt.Errorf("missing radarr_id")
 		}
+		logging.L().Debug().Str("title", item.Title).Int("radarr_id", *item.RadarrID).Msg("Deleting movie")
 		return radarr.DeleteMovie(ctx, *item.RadarrID, true)
 	case "series":
 		if item.SonarrID == nil {
 			return fmt.Errorf("missing sonarr_id")
 		}
-		return sonarr.DeleteSeries(ctx, *item.SonarrID, true)
+		logging.L().Debug().Str("title", item.Title).Int("sonarr_id", *item.SonarrID).Msg("Deleting series")
+		if err := sonarr.DeleteSeries(ctx, *item.SonarrID, true); err != nil {
+			return err
+		}
+		exists, err := sonarr.SeriesExists(ctx, *item.SonarrID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return fmt.Errorf("series still exists after delete (sonarr_id=%d)", *item.SonarrID)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupported item type: %s", item.Type)
 	}

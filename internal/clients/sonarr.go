@@ -106,6 +106,28 @@ func (c *SonarrClient) SeriesByID(ctx context.Context, id int) (*SonarrSeriesDet
 	return &out, nil
 }
 
+func (c *SonarrClient) SeriesExists(ctx context.Context, id int) (bool, error) {
+	url := c.http.Resolve(fmt.Sprintf("api/v3/series/%d", id))
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("X-Api-Key", c.http.APIKey)
+
+	resp, err := doRequest(ctx, c.http.Client, req)
+	if err != nil {
+		return false, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := readBody(resp)
+		return false, fmt.Errorf("sonarr series exists %d: status %d: %s", id, resp.StatusCode, string(body))
+	}
+	return true, nil
+}
+
 func (c *SonarrClient) Episodes(ctx context.Context, seriesID int) ([]SonarrEpisode, error) {
 	url := c.http.Resolve(fmt.Sprintf("api/v3/episode?seriesId=%d", seriesID))
 	req, err := http.NewRequest(http.MethodGet, url, nil)
