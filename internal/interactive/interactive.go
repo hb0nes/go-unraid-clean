@@ -36,6 +36,9 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 		fmt.Printf("  Last activity: %s\n", formatOptionalTime(item.LastActivityAt))
 		fmt.Printf("  Gap days: %s\n", formatGapDays(item.AddedAt, item.FirstActivityAt, rep.GeneratedAt))
 		fmt.Printf("  Inactivity days: %s\n", formatInactivityDays(item.AddedAt, item.LastActivityAt, rep.GeneratedAt))
+		if len(item.TopUsers) > 0 {
+			fmt.Printf("  Top users: %s\n", formatTopUsers(item.TopUsers, item.TopUsersTotalHours))
+		}
 		fmt.Printf("  Reason: %s\n", item.Reason)
 		fmt.Printf("  Path: %s\n", item.Path)
 
@@ -306,4 +309,18 @@ func formatInactivityDays(addedAt *time.Time, lastActivityAt *time.Time, generat
 		span = 0
 	}
 	return fmt.Sprintf("%.1f", span)
+}
+
+func formatTopUsers(users []report.UserWatch, total float64) string {
+	if len(users) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(users)+1)
+	for _, user := range users {
+		parts = append(parts, fmt.Sprintf("%s:%.1fh", user.User, user.Hours))
+	}
+	if total > 0 {
+		parts = append(parts, fmt.Sprintf("total:%.1fh", total))
+	}
+	return strings.Join(parts, " ")
 }

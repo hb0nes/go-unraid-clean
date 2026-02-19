@@ -56,7 +56,7 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 	}
 	log.Debug().Int("count", len(entries)).Msg("Loaded Tautulli history entries")
 
-	activity := buildActivityIndex(entries, cfg.Rules.ActivityMinPercent)
+	activity, watch := buildIndexes(entries, cfg.Rules.ActivityMinPercent)
 	exceptions := newExceptionIndex(cfg)
 
 	rep := &report.Report{
@@ -80,6 +80,8 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 		titleKey := normalizeTitleYear(movie.Title, movie.Year)
 		firstActivity := activity.movieFirstActivity(movie.TMDBID, movie.IMDBID, titleKey)
 		lastActivity := activity.movieLastActivity(movie.TMDBID, movie.IMDBID, titleKey)
+		topUsers := watch.movieTopUsers(movie.TMDBID, movie.IMDBID, titleKey, 2)
+		topUsersOut, topTotal := toReportUsers(topUsers)
 		addedAt := parseTime(movie.Added)
 
 		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
@@ -94,17 +96,19 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 			tmdbPtr = &tmdb
 		}
 		rep.Items = append(rep.Items, report.Item{
-			Type:            "movie",
-			Title:           fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
-			RadarrID:        &id,
-			TMDBID:          tmdbPtr,
-			IMDBID:          movie.IMDBID,
-			Path:            movie.Path,
-			SizeBytes:       movie.SizeOnDisk,
-			AddedAt:         addedAt,
-			FirstActivityAt: firstActivity,
-			LastActivityAt:  lastActivity,
-			Reason:          reason,
+			Type:               "movie",
+			Title:              fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
+			RadarrID:           &id,
+			TMDBID:             tmdbPtr,
+			IMDBID:             movie.IMDBID,
+			Path:               movie.Path,
+			SizeBytes:          movie.SizeOnDisk,
+			AddedAt:            addedAt,
+			FirstActivityAt:    firstActivity,
+			LastActivityAt:     lastActivity,
+			TopUsers:           topUsersOut,
+			TopUsersTotalHours: topTotal,
+			Reason:             reason,
 		})
 	}
 	log.Info().Int("count", len(rep.Items)).Msg("Movies flagged for review")
@@ -121,6 +125,8 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 		titleKey := normalizeTitle(show.Title)
 		firstActivity := activity.seriesFirstActivity(show.TVDBID, show.IMDBID, titleKey)
 		lastActivity := activity.seriesLastActivity(show.TVDBID, show.IMDBID, titleKey)
+		topUsers := watch.seriesTopUsers(show.TVDBID, show.IMDBID, titleKey, 2)
+		topUsersOut, topTotal := toReportUsers(topUsers)
 		addedAt := parseTime(show.Added)
 		reason := evaluate(now, lastActivity, addedAt, cutoffWatch, cutoffNever)
 		if reason == "" {
@@ -134,17 +140,19 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 			tvdbPtr = &tvdb
 		}
 		rep.Items = append(rep.Items, report.Item{
-			Type:            "series",
-			Title:           show.Title,
-			SonarrID:        &id,
-			TVDBID:          tvdbPtr,
-			IMDBID:          show.IMDBID,
-			Path:            show.Path,
-			SizeBytes:       show.Statistics.SizeOnDisk,
-			AddedAt:         addedAt,
-			FirstActivityAt: firstActivity,
-			LastActivityAt:  lastActivity,
-			Reason:          reason,
+			Type:               "series",
+			Title:              show.Title,
+			SonarrID:           &id,
+			TVDBID:             tvdbPtr,
+			IMDBID:             show.IMDBID,
+			Path:               show.Path,
+			SizeBytes:          show.Statistics.SizeOnDisk,
+			AddedAt:            addedAt,
+			FirstActivityAt:    firstActivity,
+			LastActivityAt:     lastActivity,
+			TopUsers:           topUsersOut,
+			TopUsersTotalHours: topTotal,
+			Reason:             reason,
 		})
 	}
 	log.Info().Int("count", len(rep.Items)).Msg("Total items flagged for review")
@@ -156,8 +164,9 @@ func Run(ctx context.Context, cfg config.Config, opts Options) (*report.Report, 
 	return rep, nil
 }
 
-func buildActivityIndex(entries []map[string]any, minPercent int) *activityIndex {
-	idx := newActivityIndex()
+func buildIndexes(entries []map[string]any, minPercent int) (*activityIndex, *watchIndex) {
+	activity := newActivityIndex()
+	watch := newWatchIndex()
 	for _, raw := range entries {
 		entry, ok := parseHistoryEntry(raw)
 		if !ok {
@@ -171,7 +180,8 @@ func buildActivityIndex(entries []map[string]any, minPercent int) *activityIndex
 		case "movie":
 			tmdbID, _, imdbID := extractIDsFromGuid(entry.Guid)
 			titleKey := normalizeTitleYear(entry.Title, entry.Year)
-			idx.recordMovie(tmdbID, imdbID, titleKey, entry.When)
+			activity.recordMovie(tmdbID, imdbID, titleKey, entry.When)
+			watch.recordMovie(tmdbID, imdbID, titleKey, entry.User, entry.WatchSeconds)
 		case "episode":
 			_, tvdbID, imdbID := extractIDsFromGuid(entry.GrandparentGuid)
 			if tvdbID == 0 {
@@ -184,18 +194,16 @@ func buildActivityIndex(entries []map[string]any, minPercent int) *activityIndex
 				_, _, imdbID = extractIDsFromGuid(entry.Guid)
 			}
 			titleKey := normalizeTitle(entry.GrandparentTitle)
-			idx.recordSeries(tvdbID, imdbID, titleKey, entry.When)
-		case "show":
+			activity.recordSeries(tvdbID, imdbID, titleKey, entry.When)
+			watch.recordSeries(tvdbID, imdbID, titleKey, entry.User, entry.WatchSeconds)
+		case "show", "series":
 			_, tvdbID, imdbID := extractIDsFromGuid(entry.Guid)
 			titleKey := normalizeTitle(entry.Title)
-			idx.recordSeries(tvdbID, imdbID, titleKey, entry.When)
-		case "series":
-			_, tvdbID, imdbID := extractIDsFromGuid(entry.Guid)
-			titleKey := normalizeTitle(entry.Title)
-			idx.recordSeries(tvdbID, imdbID, titleKey, entry.When)
+			activity.recordSeries(tvdbID, imdbID, titleKey, entry.When)
+			watch.recordSeries(tvdbID, imdbID, titleKey, entry.User, entry.WatchSeconds)
 		}
 	}
-	return idx
+	return activity, watch
 }
 
 func evaluate(now time.Time, lastActivity *time.Time, addedAt *time.Time, cutoffWatch time.Duration, cutoffNever time.Duration) string {
@@ -325,4 +333,21 @@ func inactivityDays(item report.Item, generatedAt time.Time) float64 {
 		return span
 	}
 	return 0
+}
+
+func toReportUsers(users []userWatch) ([]report.UserWatch, float64) {
+	if len(users) == 0 {
+		return nil, 0
+	}
+	out := make([]report.UserWatch, 0, len(users))
+	var total float64
+	for _, user := range users {
+		hours := float64(user.Seconds) / 3600
+		total += hours
+		out = append(out, report.UserWatch{
+			User:  user.User,
+			Hours: hours,
+		})
+	}
+	return out, total
 }

@@ -58,6 +58,8 @@ Use `interactive` to step through items one-by-one and choose actions:
 - delete files only (keep movie/show entry)
 - keep last season (series only)
 
+Each item shows top viewers (up to 2) with combined watch hours.
+
 ### Verbose Logging
 
 Use `-v` to enable verbose logging:

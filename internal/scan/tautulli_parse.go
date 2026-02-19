@@ -17,6 +17,8 @@ type historyEntry struct {
 	GrandparentTitle string
 	PercentComplete  int
 	When             time.Time
+	User             string
+	WatchSeconds     int64
 }
 
 func parseHistoryEntry(raw map[string]any) (historyEntry, bool) {
@@ -29,12 +31,14 @@ func parseHistoryEntry(raw map[string]any) (historyEntry, bool) {
 	entry.GrandparentGuid = getString(raw, "grandparent_guid")
 	entry.Year = getInt(raw, "year")
 	entry.PercentComplete = getInt(raw, "percent_complete", "percent")
+	entry.User = getString(raw, "user", "username", "friendly_name")
 
 	when, ok := getUnixTime(raw, "date", "stopped", "started", "last_viewed_at")
 	if !ok {
 		return entry, false
 	}
 	entry.When = when
+	entry.WatchSeconds = getWatchSeconds(raw, entry.PercentComplete)
 	return entry, true
 }
 
@@ -118,6 +122,30 @@ func coerceInt64(val any) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func getWatchSeconds(m map[string]any, percent int) int64 {
+	if seconds := getDurationSeconds(m, "watch_duration", "watched_duration", "play_duration"); seconds > 0 {
+		return seconds
+	}
+	if duration := getDurationSeconds(m, "duration"); duration > 0 && percent > 0 {
+		return int64(float64(duration) * float64(percent) / 100)
+	}
+	return getDurationSeconds(m, "view_offset")
+}
+
+func getDurationSeconds(m map[string]any, keys ...string) int64 {
+	for _, key := range keys {
+		if val, ok := m[key]; ok {
+			if seconds, ok := coerceInt64(val); ok {
+				if seconds >= 100000 {
+					return seconds / 1000
+				}
+				return seconds
+			}
+		}
+	}
+	return 0
 }
 
 func extractIDsFromGuid(guid string) (tmdbID int, tvdbID int, imdbID string) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
@@ -15,19 +16,26 @@ type Report struct {
 }
 
 type Item struct {
-	Type            string     `json:"type"`
-	Title           string     `json:"title"`
-	RadarrID        *int       `json:"radarr_id,omitempty"`
-	SonarrID        *int       `json:"sonarr_id,omitempty"`
-	TMDBID          *int       `json:"tmdb_id,omitempty"`
-	TVDBID          *int       `json:"tvdb_id,omitempty"`
-	IMDBID          string     `json:"imdb_id,omitempty"`
-	Path            string     `json:"path"`
-	SizeBytes       int64      `json:"size_bytes"`
-	AddedAt         *time.Time `json:"added_at,omitempty"`
-	FirstActivityAt *time.Time `json:"first_activity_at,omitempty"`
-	LastActivityAt  *time.Time `json:"last_activity_at,omitempty"`
-	Reason          string     `json:"reason"`
+	Type               string      `json:"type"`
+	Title              string      `json:"title"`
+	RadarrID           *int        `json:"radarr_id,omitempty"`
+	SonarrID           *int        `json:"sonarr_id,omitempty"`
+	TMDBID             *int        `json:"tmdb_id,omitempty"`
+	TVDBID             *int        `json:"tvdb_id,omitempty"`
+	IMDBID             string      `json:"imdb_id,omitempty"`
+	Path               string      `json:"path"`
+	SizeBytes          int64       `json:"size_bytes"`
+	AddedAt            *time.Time  `json:"added_at,omitempty"`
+	FirstActivityAt    *time.Time  `json:"first_activity_at,omitempty"`
+	LastActivityAt     *time.Time  `json:"last_activity_at,omitempty"`
+	TopUsers           []UserWatch `json:"top_users,omitempty"`
+	TopUsersTotalHours float64     `json:"top_users_total_hours,omitempty"`
+	Reason             string      `json:"reason"`
+}
+
+type UserWatch struct {
+	User  string  `json:"user"`
+	Hours float64 `json:"hours"`
 }
 
 type Summary struct {
@@ -70,6 +78,8 @@ func WriteCSV(path string, report *Report) error {
 		"last_activity_at",
 		"gap_days",
 		"inactivity_days",
+		"top_users",
+		"top_users_hours_total",
 		"reason",
 	}); err != nil {
 		return fmt.Errorf("write csv header: %w", err)
@@ -89,6 +99,8 @@ func WriteCSV(path string, report *Report) error {
 			formatOptionalTime(item.LastActivityAt),
 			formatGapDays(item.AddedAt, item.FirstActivityAt, report.GeneratedAt),
 			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
+			formatTopUsers(item.TopUsers, item.TopUsersTotalHours),
+			formatHours(item.TopUsersTotalHours),
 			item.Reason,
 		}
 		if err := writer.Write(row); err != nil {
@@ -139,11 +151,11 @@ func PrintTable(report *Report) {
 		return
 	}
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "TYPE\tTITLE\tSIZE(GiB)\tADDED\tFIRST_ACTIVITY\tLAST_ACTIVITY\tGAP_DAYS\tINACTIVITY_DAYS\tREASON\tPATH")
+	fmt.Fprintln(w, "TYPE\tTITLE\tSIZE(GiB)\tADDED\tFIRST_ACTIVITY\tLAST_ACTIVITY\tGAP_DAYS\tINACTIVITY_DAYS\tTOP_USERS\tREASON\tPATH")
 	for _, item := range report.Items {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.Type,
 			item.Title,
 			formatSizeGiB(item.SizeBytes),
@@ -152,6 +164,7 @@ func PrintTable(report *Report) {
 			formatOptionalTime(item.LastActivityAt),
 			formatGapDays(item.AddedAt, item.FirstActivityAt, report.GeneratedAt),
 			formatInactivityDays(item.AddedAt, item.LastActivityAt, report.GeneratedAt),
+			formatTopUsers(item.TopUsers, item.TopUsersTotalHours),
 			item.Reason,
 			item.Path,
 		)
@@ -208,4 +221,25 @@ func formatInactivityDays(addedAt *time.Time, lastActivityAt *time.Time, generat
 		span = 0
 	}
 	return fmt.Sprintf("%.1f", span)
+}
+
+func formatTopUsers(users []UserWatch, total float64) string {
+	if len(users) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(users)+1)
+	for _, user := range users {
+		parts = append(parts, fmt.Sprintf("%s:%.1fh", user.User, user.Hours))
+	}
+	if total > 0 {
+		parts = append(parts, fmt.Sprintf("total:%.1fh", total))
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatHours(hours float64) string {
+	if hours <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.1f", hours)
 }
