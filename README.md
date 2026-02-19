@@ -52,8 +52,8 @@ Supported sort keys:
 ### Interactive Review
 
 Use `interactive` to step through items one-by-one and choose actions:
-- keep
-- ignore (add to exceptions in config)
+- skip (no changes for this item)
+- always-ignore (adds to exceptions in config)
 - delete entirely
 - delete files only (keep movie/show entry)
 - keep last season (series only)

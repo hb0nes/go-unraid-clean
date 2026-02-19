@@ -39,9 +39,9 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 		fmt.Printf("  Reason: %s\n", item.Reason)
 		fmt.Printf("  Path: %s\n", item.Path)
 
-		options := "[k]eep [i]gnore [d]elete [f]delete-files [q]uit"
+		options := "[s]kip [a]always-ignore [d]elete [f]delete-files [q]uit"
 		if item.Type == "series" {
-			options = "[k]eep [i]gnore [d]elete [f]delete-files [l]last-season [q]uit"
+			options = "[s]kip [a]always-ignore [d]elete [f]delete-files [l]last-season [q]uit"
 		}
 
 		for {
@@ -55,10 +55,10 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 				continue
 			}
 			switch choice {
-			case "k", "keep":
+			case "s", "skip", "keep":
 				log.Debug().Str("title", item.Title).Msg("Keeping item")
 				goto nextItem
-			case "i", "ignore", "safe":
+			case "a", "always", "always-ignore", "ignore", "safe", "whitelist", "exclude":
 				if err := addException(&cfg, item); err != nil {
 					fmt.Printf("Failed to add exception: %s\n", err)
 					continue
