@@ -70,12 +70,17 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 				log.Debug().Str("title", item.Title).Msg("Keeping item")
 				goto nextItem
 			case "a", "always", "always-ignore", "ignore", "safe", "whitelist", "exclude":
-				if err := addException(&cfg, item); err != nil {
+				changes, err := addException(&cfg, item)
+				if err != nil {
 					fmt.Printf("Failed to add exception: %s\n", err)
 					continue
 				}
 				changedConfig = true
-				fmt.Println("Added to exceptions.")
+				if len(changes) > 0 {
+					fmt.Printf("Added to exceptions: %s\n", strings.Join(changes, ", "))
+				} else {
+					fmt.Println("Added to exceptions.")
+				}
 				goto nextItem
 			case "d", "delete":
 				if err := deleteItem(ctx, radarr, sonarr, item); err != nil {
@@ -125,32 +130,85 @@ func Run(ctx context.Context, cfgPath string, cfg config.Config, rep *report.Rep
 	return nil
 }
 
-func addException(cfg *config.Config, item report.Item) error {
+func addException(cfg *config.Config, item report.Item) ([]string, error) {
+	var changes []string
 	switch item.Type {
 	case "movie":
 		if item.RadarrID != nil {
+			before := len(cfg.Exceptions.Movies.RadarrIDs)
 			cfg.Exceptions.Movies.RadarrIDs = config.AddUniqueInt(cfg.Exceptions.Movies.RadarrIDs, *item.RadarrID)
+			if len(cfg.Exceptions.Movies.RadarrIDs) > before {
+				changes = append(changes, fmt.Sprintf("radarr_id=%d", *item.RadarrID))
+			}
 		}
 		if item.TMDBID != nil {
+			before := len(cfg.Exceptions.Movies.TMDBIDs)
 			cfg.Exceptions.Movies.TMDBIDs = config.AddUniqueInt(cfg.Exceptions.Movies.TMDBIDs, *item.TMDBID)
+			if len(cfg.Exceptions.Movies.TMDBIDs) > before {
+				changes = append(changes, fmt.Sprintf("tmdb_id=%d", *item.TMDBID))
+			}
 		}
 		if item.IMDBID != "" {
+			before := len(cfg.Exceptions.Movies.IMDBIDs)
 			cfg.Exceptions.Movies.IMDBIDs = config.AddUniqueString(cfg.Exceptions.Movies.IMDBIDs, item.IMDBID)
+			if len(cfg.Exceptions.Movies.IMDBIDs) > before {
+				changes = append(changes, fmt.Sprintf("imdb_id=%s", item.IMDBID))
+			}
 		}
-		return nil
+		if item.Title != "" {
+			before := len(cfg.Exceptions.Movies.Titles)
+			cfg.Exceptions.Movies.Titles = config.AddUniqueString(cfg.Exceptions.Movies.Titles, item.Title)
+			if len(cfg.Exceptions.Movies.Titles) > before {
+				changes = append(changes, fmt.Sprintf("title=%q", item.Title))
+			}
+		}
+		if item.Path != "" {
+			before := len(cfg.Exceptions.Movies.PathPrefixes)
+			cfg.Exceptions.Movies.PathPrefixes = config.AddUniqueString(cfg.Exceptions.Movies.PathPrefixes, item.Path)
+			if len(cfg.Exceptions.Movies.PathPrefixes) > before {
+				changes = append(changes, fmt.Sprintf("path=%q", item.Path))
+			}
+		}
+		return changes, nil
 	case "series":
 		if item.SonarrID != nil {
+			before := len(cfg.Exceptions.Series.SonarrIDs)
 			cfg.Exceptions.Series.SonarrIDs = config.AddUniqueInt(cfg.Exceptions.Series.SonarrIDs, *item.SonarrID)
+			if len(cfg.Exceptions.Series.SonarrIDs) > before {
+				changes = append(changes, fmt.Sprintf("sonarr_id=%d", *item.SonarrID))
+			}
 		}
 		if item.TVDBID != nil {
+			before := len(cfg.Exceptions.Series.TVDBIDs)
 			cfg.Exceptions.Series.TVDBIDs = config.AddUniqueInt(cfg.Exceptions.Series.TVDBIDs, *item.TVDBID)
+			if len(cfg.Exceptions.Series.TVDBIDs) > before {
+				changes = append(changes, fmt.Sprintf("tvdb_id=%d", *item.TVDBID))
+			}
 		}
 		if item.IMDBID != "" {
+			before := len(cfg.Exceptions.Series.IMDBIDs)
 			cfg.Exceptions.Series.IMDBIDs = config.AddUniqueString(cfg.Exceptions.Series.IMDBIDs, item.IMDBID)
+			if len(cfg.Exceptions.Series.IMDBIDs) > before {
+				changes = append(changes, fmt.Sprintf("imdb_id=%s", item.IMDBID))
+			}
 		}
-		return nil
+		if item.Title != "" {
+			before := len(cfg.Exceptions.Series.Titles)
+			cfg.Exceptions.Series.Titles = config.AddUniqueString(cfg.Exceptions.Series.Titles, item.Title)
+			if len(cfg.Exceptions.Series.Titles) > before {
+				changes = append(changes, fmt.Sprintf("title=%q", item.Title))
+			}
+		}
+		if item.Path != "" {
+			before := len(cfg.Exceptions.Series.PathPrefixes)
+			cfg.Exceptions.Series.PathPrefixes = config.AddUniqueString(cfg.Exceptions.Series.PathPrefixes, item.Path)
+			if len(cfg.Exceptions.Series.PathPrefixes) > before {
+				changes = append(changes, fmt.Sprintf("path=%q", item.Path))
+			}
+		}
+		return changes, nil
 	default:
-		return fmt.Errorf("unsupported item type: %s", item.Type)
+		return nil, fmt.Errorf("unsupported item type: %s", item.Type)
 	}
 }
 

@@ -20,6 +20,7 @@ go build ./cmd/go-unraid-clean
 ./go-unraid-clean apply --config config.yaml --in review.json
 ./go-unraid-clean apply --config config.yaml --in review.json --confirm
 ./go-unraid-clean interactive --config config.yaml --in review.json
+./go-unraid-clean enrich-exceptions --config config.yaml
 ./go-unraid-clean scan --config config.yaml --csv review.csv --table -v
 ```
 
@@ -63,6 +64,16 @@ Use `interactive` to step through items one-by-one and choose actions:
 - keep last season (series only)
 
 Each item shows top viewers (up to 2) with combined watch hours.
+
+### Enrich Exceptions
+
+If your config has ID-only exceptions, enrich them with human-readable titles/paths:
+
+```bash
+./go-unraid-clean enrich-exceptions --config config.yaml
+```
+
+Use `--dry-run` to preview changes without writing.
 
 ### Verbose Logging
 
